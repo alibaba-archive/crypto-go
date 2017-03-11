@@ -1,0 +1,154 @@
+package crypto
+
+import (
+	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestCrypto(t *testing.T) {
+	t.Run("Equal", func(t *testing.T) {
+		assert := assert.New(t)
+
+		assert.True(Equal([]byte("123"), []byte("123")))
+		assert.False(Equal([]byte("123"), []byte("abc")))
+	})
+
+	t.Run("RandN", func(t *testing.T) {
+		assert := assert.New(t)
+
+		assert.Equal(0, len(RandN(0)))
+		assert.Equal(8, len(RandN(8)))
+		assert.Equal(15, len(RandN(15)))
+	})
+
+	t.Run("SHA256Sum", func(t *testing.T) {
+		assert := assert.New(t)
+
+		assert.Equal("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			hex.EncodeToString(SHA256Sum([]byte{})))
+		assert.Equal("72726d8818f693066ceb69afa364218b692e62ea92b385782363780f47529c21",
+			hex.EncodeToString(SHA256Sum([]byte("中文"))))
+	})
+
+	t.Run("HashSum", func(t *testing.T) {
+		assert := assert.New(t)
+
+		assert.Equal("d41d8cd98f00b204e9800998ecf8427e",
+			hex.EncodeToString(HashSum(md5.New, []byte{})))
+		assert.Equal("a7bac2239fcdcb3a067903d8077c4a07",
+			hex.EncodeToString(HashSum(md5.New, []byte("中文"))))
+
+		assert.Equal("da39a3ee5e6b4b0d3255bfef95601890afd80709",
+			hex.EncodeToString(HashSum(sha1.New, []byte{})))
+		assert.Equal("7be2d2d20c106eee0836c9bc2b939890a78e8fb3",
+			hex.EncodeToString(HashSum(sha1.New, []byte("中文"))))
+
+		assert.Equal("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			hex.EncodeToString(HashSum(sha256.New, []byte{})))
+		assert.Equal("72726d8818f693066ceb69afa364218b692e62ea92b385782363780f47529c21",
+			hex.EncodeToString(HashSum(sha256.New, []byte("中文"))))
+	})
+
+	t.Run("HmacSum", func(t *testing.T) {
+		assert := assert.New(t)
+
+		assert.Equal("74e6f7298a9c2d168935f58c001bad88",
+			hex.EncodeToString(HmacSum(md5.New, nil, []byte{})))
+		assert.Equal("74e6f7298a9c2d168935f58c001bad88",
+			hex.EncodeToString(HmacSum(md5.New, []byte{}, []byte{})))
+		assert.Equal("d2b8aee3a7b860d93005cf5f0d239ea1",
+			hex.EncodeToString(HmacSum(md5.New, nil, []byte("中文"))))
+		assert.Equal("4a23aaec863f1bd0974d4e83910d3e17",
+			hex.EncodeToString(HmacSum(md5.New, []byte("abc"), []byte{})))
+		assert.Equal("22c7b79bbee5f8ac93959c36ce73a763",
+			hex.EncodeToString(HmacSum(md5.New, []byte("abc"), []byte("中文"))))
+
+		assert.Equal("b613679a0814d9ec772f95d778c35fc5ff1697c493715653c6c712144292c5ad",
+			hex.EncodeToString(HmacSum(sha256.New, nil, []byte{})))
+		assert.Equal("b613679a0814d9ec772f95d778c35fc5ff1697c493715653c6c712144292c5ad",
+			hex.EncodeToString(HmacSum(sha256.New, []byte{}, []byte{})))
+		assert.Equal("52f32e44183ef72271e707e57875a044b7039233ce4193e8284817712939afb3",
+			hex.EncodeToString(HmacSum(sha256.New, nil, []byte("中文"))))
+		assert.Equal("e2636077506729a8f61aff2441332e40e844a8ad44489efd80210ea6d1f51088",
+			hex.EncodeToString(HmacSum(sha256.New, []byte("abc"), []byte{})))
+		assert.Equal("e61f53e7c7932bf37ecf8b704866549c03fc7250cd1d3708bef92c02d09cd9fe",
+			hex.EncodeToString(HmacSum(sha256.New, []byte("abc"), []byte("中文"))))
+	})
+
+	t.Run("SHA256Hmac", func(t *testing.T) {
+		assert := assert.New(t)
+		assert.Equal(32, len(SHA256Hmac([]byte{}, []byte{})))
+		assert.Equal(32, len(SHA256Hmac([]byte{}, []byte("test pass"))))
+		assert.Equal(32, len(SHA256Hmac([]byte("admin"), []byte{})))
+		assert.Equal(32, len(SHA256Hmac([]byte("admin"), []byte("中文"))))
+	})
+
+	t.Run("AESEncrypt and AESDecrypt", func(t *testing.T) {
+		assert := assert.New(t)
+
+		salt := RandN(16)
+		key := SHA256Hmac(salt, []byte("test key"))
+
+		cipherData, err := AESEncrypt(salt, key, []byte{})
+		assert.Nil(err)
+		data, err := AESDecrypt(salt, key, cipherData)
+		assert.Nil(err)
+		assert.Equal([]byte{}, data)
+
+		cipherData, err = AESEncrypt(salt, key, []byte("Hello! 中国"))
+		assert.Nil(err)
+		data, err = AESDecrypt(salt, key, cipherData)
+		assert.Nil(err)
+		assert.Equal("Hello! 中国", string(data))
+
+		data, err = AESDecrypt(salt, key, append(cipherData[0:len(cipherData)-1], cipherData[len(cipherData)-1]+1))
+		assert.NotNil(err)
+		assert.Nil(data)
+	})
+
+	t.Run("AESEncryptStr and AESDecryptStr", func(t *testing.T) {
+		assert := assert.New(t)
+
+		key := "test key"
+
+		cipherData, err := AESEncryptStr(nil, key, "")
+		assert.Nil(err)
+		data, err := AESDecryptStr(nil, key, cipherData)
+		assert.Nil(err)
+		assert.Equal("", data)
+
+		cipherData, err = AESEncryptStr(nil, key, "Hello! 中国")
+		assert.Nil(err)
+		data, err = AESDecryptStr(nil, key, cipherData)
+		assert.Nil(err)
+		assert.Equal("Hello! 中国", data)
+
+		data, err = AESDecryptStr(nil, key, cipherData+"1")
+		assert.NotNil(err)
+		assert.Equal("", data)
+
+		data, err = AESDecryptStr(nil, key, cipherData[:len(cipherData)-10])
+		assert.NotNil(err)
+		assert.Equal("", data)
+	})
+
+	t.Run("SignPass and VerifyPass", func(t *testing.T) {
+		assert := assert.New(t)
+		salt := RandN(16)
+
+		checkPass := SignPass(salt, "admin", "test pass")
+		assert.True(VerifyPass(salt, "admin", "test pass", checkPass))
+		assert.False(VerifyPass(salt, "admin1", "test pass", checkPass))
+		assert.False(VerifyPass(salt, "admin", "test pass1", checkPass))
+		assert.False(VerifyPass(salt, "admin", "test pass", checkPass[1:]))
+
+		checkPass = SignPass(nil, "admin", "test pass")
+		assert.True(VerifyPass(nil, "admin", "test pass", checkPass))
+		assert.False(VerifyPass(salt, "admin", "test pass", checkPass))
+	})
+}
