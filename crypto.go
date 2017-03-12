@@ -11,8 +11,12 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"hash"
 	"io"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/teambition/crypto-go/pbkdf2"
 )
@@ -102,12 +106,12 @@ func AESEncryptStr(salt []byte, key, plainText string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return base64.RawURLEncoding.EncodeToString(data), nil
+	return base64.URLEncoding.EncodeToString(data), nil
 }
 
 // AESDecryptStr decrypt data with key
 func AESDecryptStr(salt []byte, key, cipherText string) (string, error) {
-	cipherData, err := base64.RawURLEncoding.DecodeString(cipherText)
+	cipherData, err := base64.URLEncoding.DecodeString(cipherText)
 	if err != nil {
 		return "", err
 	}
@@ -124,7 +128,7 @@ func AESDecryptStr(salt []byte, key, cipherText string) (string, error) {
 // recommended salt length >= 16 bytes
 func SignPass(salt []byte, id, pass string, args ...int) (checkPass string) {
 	b := signPass(salt, RandN(8), SHA256Hmac([]byte(id), []byte(pass)), args...)
-	return base64.StdEncoding.EncodeToString(b)
+	return base64.URLEncoding.EncodeToString(b)
 }
 
 func signPass(salt, iv, pass []byte, args ...int) []byte {
@@ -142,17 +146,46 @@ func signPass(salt, iv, pass []byte, args ...int) []byte {
 
 // VerifyPass verify user' id and password with a checkPass(stored in database)
 func VerifyPass(salt []byte, id, pass, checkPass string, args ...int) bool {
-	a, err := base64.StdEncoding.DecodeString(checkPass)
+	a, err := base64.URLEncoding.DecodeString(checkPass)
 	if err != nil || len(a) < 22 {
 		return false
 	}
 	return Equal(a, signPass(salt, a[len(a)-8:], SHA256Hmac([]byte(id), []byte(pass)), args...))
 }
 
-// Rotating key rotation
+// SignState ...
+//  fmt.Println(SignState([]byte("my key"), "")
+//  // 1489326422.3ee088ac07612458db566fd94609a1c3
+func SignState(key []byte, uid string) string {
+	ts := time.Now().Unix()
+	iv := RandN(4)
+	prefix := fmt.Sprintf(`%d.%x`, ts, iv)
+	return prefix + signState(key, prefix+uid)
+}
+
+func signState(key []byte, str string) string {
+	return fmt.Sprintf(`%x`, HmacSum(sha1.New, key, []byte(str))[0:12])
+}
+
+// VerifyState ...
+func VerifyState(key []byte, uid, state string, expire time.Duration) bool {
+	s := strings.Split(state, ".")
+	if len(s) != 2 {
+		return false
+	}
+	i, err := strconv.ParseInt(s[0], 10, 64)
+	if err != nil || (i+int64(expire)/1e9) < time.Now().Unix() {
+		return false
+	}
+	return s[1][8:] == signState(key, fmt.Sprintf(`%s.%s%s`, s[0], s[1][0:8], uid))
+}
+
+// Rotating is used to verify data through a rotating credential system,
+// in which new server keys can be added and old ones removed regularly,
+// without invalidating client credentials.
 type Rotating []interface{}
 
-// Verify ...
+// Verify verify with fn and keys
 func (r Rotating) Verify(fn func(interface{}) bool) (index int) {
 	for i, key := range r {
 		if fn(key) {

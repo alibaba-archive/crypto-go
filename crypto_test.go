@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -150,5 +151,75 @@ func TestCrypto(t *testing.T) {
 		checkPass = SignPass(nil, "admin", "test pass")
 		assert.True(VerifyPass(nil, "admin", "test pass", checkPass))
 		assert.False(VerifyPass(salt, "admin", "test pass", checkPass))
+	})
+
+	t.Run("SignState and VerifyState", func(t *testing.T) {
+		assert := assert.New(t)
+
+		key := RandN(16)
+		state := SignState(key, "")
+		assert.True(VerifyState(key, "", state, time.Second))
+		assert.False(VerifyState(key, "abc", state, time.Second))
+		assert.False(VerifyState(key, "", state+"1", time.Second))
+		assert.False(VerifyState(RandN(12), "", state, time.Second))
+		time.Sleep(2 * time.Second)
+		assert.False(VerifyState(key, "", state, time.Second))
+	})
+
+	t.Run("Rotating", func(t *testing.T) {
+		assert := assert.New(t)
+
+		keys := []interface{}{"a", "b", "c"}
+		r := Rotating(keys)
+		assert.Equal(-1, r.Verify(func(key interface{}) bool {
+			return key.(string) == "x"
+		}))
+		assert.Equal(0, r.Verify(func(key interface{}) bool {
+			return key.(string) == "a"
+		}))
+		assert.Equal(1, r.Verify(func(key interface{}) bool {
+			return key.(string) == "b"
+		}))
+		assert.Equal(2, r.Verify(func(key interface{}) bool {
+			return key.(string) == "c"
+		}))
+	})
+
+	t.Run("RotatingStr", func(t *testing.T) {
+		assert := assert.New(t)
+
+		keys := []string{"a", "b", "c"}
+		r := RotatingStr(keys)
+		assert.Equal(-1, r.Verify(func(key string) bool {
+			return key == "x"
+		}))
+		assert.Equal(0, r.Verify(func(key string) bool {
+			return key == "a"
+		}))
+		assert.Equal(1, r.Verify(func(key string) bool {
+			return key == "b"
+		}))
+		assert.Equal(2, r.Verify(func(key string) bool {
+			return key == "c"
+		}))
+	})
+
+	t.Run("RotatingBytes", func(t *testing.T) {
+		assert := assert.New(t)
+
+		keys := [][]byte{[]byte("a"), []byte("b"), []byte("c")}
+		r := RotatingBytes(keys)
+		assert.Equal(-1, r.Verify(func(key []byte) bool {
+			return string(key) == "x"
+		}))
+		assert.Equal(0, r.Verify(func(key []byte) bool {
+			return string(key) == "a"
+		}))
+		assert.Equal(1, r.Verify(func(key []byte) bool {
+			return string(key) == "b"
+		}))
+		assert.Equal(2, r.Verify(func(key []byte) bool {
+			return string(key) == "c"
+		}))
 	})
 }
