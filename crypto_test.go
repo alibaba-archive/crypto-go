@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
+	"strings"
 	"testing"
 	"time"
 
@@ -110,6 +111,10 @@ func TestCrypto(t *testing.T) {
 		data, err = AESDecrypt(salt, key, append(cipherData[0:len(cipherData)-1], cipherData[len(cipherData)-1]+1))
 		assert.NotNil(err)
 		assert.Nil(data)
+
+		data, err = AESDecrypt(salt, key, cipherData[0:10])
+		assert.NotNil(err)
+		assert.Nil(data)
 	})
 
 	t.Run("AESEncryptStr and AESDecryptStr", func(t *testing.T) {
@@ -133,6 +138,10 @@ func TestCrypto(t *testing.T) {
 		assert.NotNil(err)
 		assert.Equal("", data)
 
+		data, err = AESDecryptStr(nil, key, strings.ToLower(cipherData))
+		assert.NotNil(err)
+		assert.Equal("", data)
+
 		data, err = AESDecryptStr(nil, key, cipherData[:len(cipherData)-10])
 		assert.NotNil(err)
 		assert.Equal("", data)
@@ -151,6 +160,10 @@ func TestCrypto(t *testing.T) {
 		checkPass = SignPass(nil, "admin", "test pass")
 		assert.True(VerifyPass(nil, "admin", "test pass", checkPass))
 		assert.False(VerifyPass(salt, "admin", "test pass", checkPass))
+
+		checkPass = SignPass(salt, "admin", "test pass", 1025, 16)
+		assert.True(VerifyPass(salt, "admin", "test pass", checkPass, 1025, 16))
+		assert.False(VerifyPass(salt, "admin", "test pass", checkPass, 1024, 16))
 	})
 
 	t.Run("SignState and VerifyState", func(t *testing.T) {
@@ -160,6 +173,7 @@ func TestCrypto(t *testing.T) {
 		state := SignState(key, "")
 		assert.True(VerifyState(key, "", state, time.Second))
 		assert.False(VerifyState(key, "abc", state, time.Second))
+		assert.False(VerifyState(key, "", state[0:5], time.Second))
 		assert.False(VerifyState(key, "", state+"1", time.Second))
 		assert.False(VerifyState(RandN(12), "", state, time.Second))
 		time.Sleep(2 * time.Second)

@@ -22,11 +22,18 @@ import (
 )
 
 // Equal compares two []byte for equality without leaking timing information.
+//
+//  fmt.Println(crypto.Equal([]byte("123"), []byte("123")))
+//  fmt.Println(crypto.Equal([]byte("123"), []byte("1234")))
+//
 func Equal(a, b []byte) bool {
 	return subtle.ConstantTimeCompare(a, b) == 1
 }
 
-// RandN return rand bytes
+// RandN return rand bytes by given size.
+//
+//  fmt.Println(crypto.RandN(16))
+//
 func RandN(size int) []byte {
 	b := make([]byte, size)
 	if _, err := rand.Read(b); err != nil {
@@ -35,32 +42,49 @@ func RandN(size int) []byte {
 	return b
 }
 
-// HashSum ...
+// HashSum returns hash result by given hash function and data
+//
+//  fmt.Println(crypto.HashSum(md5.New, []byte("hello")))
+//  fmt.Println(crypto.HashSum(sha256.New, []byte("hello")))
+//
 func HashSum(h func() hash.Hash, data []byte) []byte {
 	hs := h()
 	hs.Write(data)
 	return hs.Sum(nil)
 }
 
-// HmacSum ...
+// HmacSum returns Keyed-Hash result by given hash function, key and data
+//
+//  fmt.Println(crypto.HmacSum(md5.New, []byte("my key"), []byte("hello")))
+//  fmt.Println(crypto.HmacSum(sha256.New, []byte("my key"), []byte("hello")))
+//
 func HmacSum(h func() hash.Hash, key, data []byte) []byte {
 	hs := hmac.New(h, key)
 	hs.Write(data)
 	return hs.Sum(nil)
 }
 
-// SHA256Sum ...
+// SHA256Sum returns SHA256 hash result by given data
+//
+//  fmt.Println(crypto.SHA256Sum([]byte("hello")))
+//
 func SHA256Sum(data []byte) []byte {
 	return HashSum(sha256.New, data)
 }
 
-// SHA256Hmac ...
+// SHA256Hmac returns SHA256 Keyed-Hash result by given key and data
+//
+//  fmt.Println(crypto.SHA256Hmac([]byte("my key"), []byte("hello")))
+//
 func SHA256Hmac(key, data []byte) []byte {
 	return HmacSum(sha256.New, key, data)
 }
 
-// AESEncrypt ...
-// AES-256 with CTR Mode
+// AESEncrypt encrypt data using AES-256 with CTR Mode
+//
+//  fmt.Println(crypto.AESEncrypt([]byte("my salt"), []byte("my key"), []byte("hello")))
+//  fmt.Println(crypto.AESEncrypt(nil, []byte("my key"), []byte("hello"))) // no salt
+//
 func AESEncrypt(salt, key, data []byte) ([]byte, error) {
 	block, err := aes.NewCipher(SHA256Hmac(salt, key))
 	if err != nil {
@@ -78,7 +102,11 @@ func AESEncrypt(salt, key, data []byte) ([]byte, error) {
 	return append(cipherData, HmacSum(sha1.New, cipherData, data)...), nil
 }
 
-// AESDecrypt decrypt data with key
+// AESDecrypt decrypt data that encrypted by AESEncrypt
+//
+//  fmt.Println(crypto.AESDecrypt([]byte("my salt"), []byte("my key"), cipherData))
+//  fmt.Println(crypto.AESDecrypt(nil, []byte("my key"), cipherData)) // no salt
+//
 func AESDecrypt(salt, key, cipherData []byte) ([]byte, error) {
 	if len(cipherData) < aes.BlockSize+sha1.Size {
 		return nil, errors.New("invalid cipher data")
@@ -100,18 +128,26 @@ func AESDecrypt(salt, key, cipherData []byte) ([]byte, error) {
 	return data, nil
 }
 
-// AESEncryptStr encrypt data with key
+// AESEncryptStr encrypt data using AES-256 with CTR Mode
+//
+//  fmt.Println(crypto.AESEncryptStr([]byte("my salt"), "my key", "hello"))
+//  fmt.Println(crypto.AESEncryptStr(nil, "my key", "hello")) // no salt
+//
 func AESEncryptStr(salt []byte, key, plainText string) (string, error) {
 	data, err := AESEncrypt(salt, []byte(key), []byte(plainText))
 	if err != nil {
 		return "", err
 	}
-	return base64.URLEncoding.EncodeToString(data), nil
+	return base64.StdEncoding.EncodeToString(data), nil
 }
 
-// AESDecryptStr decrypt data with key
+// AESDecryptStr decrypt data that encrypted by AESDecryptStr
+//
+//  fmt.Println(crypto.AESDecryptStr([]byte("my salt"), "my key", cipherData))
+//  fmt.Println(crypto.AESDecryptStr(nil, "my key", cipherData)) // no salt
+//
 func AESDecryptStr(salt []byte, key, cipherText string) (string, error) {
-	cipherData, err := base64.URLEncoding.DecodeString(cipherText)
+	cipherData, err := base64.StdEncoding.DecodeString(cipherText)
 	if err != nil {
 		return "", err
 	}
@@ -123,12 +159,19 @@ func AESDecryptStr(salt []byte, key, cipherText string) (string, error) {
 	return string(data), nil
 }
 
-// SignPass returns a string checkPass by the user' id and pass.
+// SignPass generates a string checkPass with PBKDF2 by the user' id and pass.
 // http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-132.pdf
 // recommended salt length >= 16 bytes
+// default iter count is 12480
+// default result length is 64
+//
+//  fmt.Println(crypto.SignPass([]byte("salt..."), "user_id", "user_password"))
+//  fmt.Println(crypto.SignPass([]byte("salt..."), "user_id", "user_password"), 1024) // iterCount == 1024
+//  fmt.Println(crypto.SignPass([]byte("salt..."), "user_id", "user_password"), 1024, 32)
+//
 func SignPass(salt []byte, id, pass string, args ...int) (checkPass string) {
 	b := signPass(salt, RandN(8), SHA256Hmac([]byte(id), []byte(pass)), args...)
-	return base64.URLEncoding.EncodeToString(b)
+	return base64.StdEncoding.EncodeToString(b)
 }
 
 func signPass(salt, iv, pass []byte, args ...int) []byte {
@@ -144,18 +187,24 @@ func signPass(salt, iv, pass []byte, args ...int) []byte {
 	return append(b, iv...)
 }
 
-// VerifyPass verify user' id and password with a checkPass(stored in database)
+// VerifyPass verify user' id and password that generated by SignPass
+//
+//  fmt.Println(crypto.VerifyPass([]byte("salt..."), "user_id", "user_password", checkPass))
+//
 func VerifyPass(salt []byte, id, pass, checkPass string, args ...int) bool {
-	a, err := base64.URLEncoding.DecodeString(checkPass)
+	a, err := base64.StdEncoding.DecodeString(checkPass)
 	if err != nil || len(a) < 22 {
 		return false
 	}
 	return Equal(a, signPass(salt, a[len(a)-8:], SHA256Hmac([]byte(id), []byte(pass)), args...))
 }
 
-// SignState ...
+// SignState generates a state string signed by SHA1.
+// It is useful for OAUTH2 or Web hook callback.
+//
 //  fmt.Println(SignState([]byte("my key"), "")
 //  // 1489326422.3ee088ac07612458db566fd94609a1c3
+//
 func SignState(key []byte, uid string) string {
 	ts := time.Now().Unix()
 	iv := RandN(4)
@@ -167,7 +216,10 @@ func signState(key []byte, str string) string {
 	return fmt.Sprintf(`%x`, HmacSum(sha1.New, key, []byte(str))[0:12])
 }
 
-// VerifyState ...
+// VerifyState Verify state that generated by SignState.
+//
+//  fmt.Println(VerifyState([]byte("my key"), "", state, 60* time.Second)
+//
 func VerifyState(key []byte, uid, state string, expire time.Duration) bool {
 	s := strings.Split(state, ".")
 	if len(s) != 2 {
@@ -183,9 +235,20 @@ func VerifyState(key []byte, uid, state string, expire time.Duration) bool {
 // Rotating is used to verify data through a rotating credential system,
 // in which new server keys can be added and old ones removed regularly,
 // without invalidating client credentials.
+//
+//  var err error
+//  var claims josejwt.Claims
+//  index := Rotating(keys).Verify(func(key interface{}) bool {
+//  	if err = jwtToken.Validate(key, method); err == nil {
+//  		claims = jwtToken.Claims()
+//  		return true
+//  	}
+//  	return false
+//  })
+//
 type Rotating []interface{}
 
-// Verify verify with fn and keys
+// Verify verify with fn and keys, if Verify failure, it return -1, other the index of key.
 func (r Rotating) Verify(fn func(interface{}) bool) (index int) {
 	for i, key := range r {
 		if fn(key) {
@@ -195,10 +258,10 @@ func (r Rotating) Verify(fn func(interface{}) bool) (index int) {
 	return -1
 }
 
-// RotatingStr ...
+// RotatingStr is similar to Rotating.
 type RotatingStr []string
 
-// Verify ...
+// Verify verify with fn and keys, if Verify failure, it return -1, other the index of key.
 func (r RotatingStr) Verify(fn func(string) bool) (index int) {
 	for i, key := range r {
 		if fn(key) {
@@ -208,10 +271,10 @@ func (r RotatingStr) Verify(fn func(string) bool) (index int) {
 	return -1
 }
 
-// RotatingBytes ...
+// RotatingBytes is similar to Rotating.
 type RotatingBytes [][]byte
 
-// Verify ...
+// Verify verify with fn and keys, if Verify failure, it return -1, other the index of key.
 func (r RotatingBytes) Verify(fn func([]byte) bool) (index int) {
 	for i, key := range r {
 		if fn(key) {
