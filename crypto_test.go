@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/crypto/sha3"
 )
 
 func TestCrypto(t *testing.T) {
@@ -54,6 +55,11 @@ func TestCrypto(t *testing.T) {
 			hex.EncodeToString(HashSum(sha256.New, []byte{})))
 		assert.Equal("72726d8818f693066ceb69afa364218b692e62ea92b385782363780f47529c21",
 			hex.EncodeToString(HashSum(sha256.New, []byte("中文"))))
+
+		assert.Equal("a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a",
+			hex.EncodeToString(HashSum(sha3.New256, []byte{})))
+		assert.Equal("ac5305da3d18be1aed44aa7c70ea548da243a59a5fd546f489348fd5718fb1a0",
+			hex.EncodeToString(HashSum(sha3.New256, []byte("中文"))))
 	})
 
 	t.Run("HmacSum", func(t *testing.T) {
@@ -80,6 +86,17 @@ func TestCrypto(t *testing.T) {
 			hex.EncodeToString(HmacSum(sha256.New, []byte("abc"), []byte{})))
 		assert.Equal("e61f53e7c7932bf37ecf8b704866549c03fc7250cd1d3708bef92c02d09cd9fe",
 			hex.EncodeToString(HmacSum(sha256.New, []byte("abc"), []byte("中文"))))
+
+		assert.Equal("e841c164e5b4f10c9f3985587962af72fd607a951196fc92fb3a5251941784ea",
+			hex.EncodeToString(HmacSum(sha3.New256, nil, []byte{})))
+		assert.Equal("e841c164e5b4f10c9f3985587962af72fd607a951196fc92fb3a5251941784ea",
+			hex.EncodeToString(HmacSum(sha3.New256, []byte{}, []byte{})))
+		assert.Equal("f316ce909c86a8f51c0df568a9782c2b934ba406da8646026c22977b7273a5c9",
+			hex.EncodeToString(HmacSum(sha3.New256, nil, []byte("中文"))))
+		assert.Equal("c9b2ba2847b0057387fe8949261677346dbd319c2148947cbe81bc681b0f81db",
+			hex.EncodeToString(HmacSum(sha3.New256, []byte("abc"), []byte{})))
+		assert.Equal("7eeab728f66a2fe8c2df8059e0929e3eaf12fdad43210a299d008086b7bc116e",
+			hex.EncodeToString(HmacSum(sha3.New256, []byte("abc"), []byte("中文"))))
 	})
 
 	t.Run("SHA256Hmac", func(t *testing.T) {
@@ -156,6 +173,7 @@ func TestCrypto(t *testing.T) {
 		assert.False(VerifyPass(salt, "admin1", "test pass", checkPass))
 		assert.False(VerifyPass(salt, "admin", "test pass1", checkPass))
 		assert.False(VerifyPass(salt, "admin", "test pass", checkPass[1:]))
+		assert.False(VerifyPass(salt, "admin", "test pass", checkPass[:10]))
 
 		checkPass = SignPass(nil, "admin", "test pass")
 		assert.True(VerifyPass(nil, "admin", "test pass", checkPass))
@@ -178,6 +196,9 @@ func TestCrypto(t *testing.T) {
 		assert.False(VerifyState(RandN(12), "", state, time.Second))
 		time.Sleep(2 * time.Second)
 		assert.False(VerifyState(key, "", state, time.Second))
+
+		state = SignState(key, "cb374f9a1d2c3e8e56fe76c7e0770531eed27c89beae9de4")
+		assert.True(VerifyState(key, "cb374f9a1d2c3e8e56fe76c7e0770531eed27c89beae9de4", state, time.Second))
 	})
 
 	t.Run("Rotating", func(t *testing.T) {
@@ -236,4 +257,25 @@ func TestCrypto(t *testing.T) {
 			return string(key) == "c"
 		}))
 	})
+}
+
+// go test -bench=.
+func BenchmarkSHA2(b *testing.B) {
+	b.N = 1000000
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		HashSum(sha256.New, []byte{})
+	}
+}
+
+func BenchmarkSHA3(b *testing.B) {
+	b.N = 100000
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		HashSum(sha3.New256, []byte{})
+	}
 }
