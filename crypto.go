@@ -37,7 +37,7 @@ func Equal(a, b []byte) bool {
 func RandN(size int) []byte {
 	b := make([]byte, size)
 	if _, err := rand.Read(b); err != nil {
-		panic(err)
+		panic("rand.Read() failed: " + err.Error())
 	}
 	return b
 }
@@ -249,7 +249,7 @@ func VerifyState(key []byte, uid, state string, expire time.Duration) bool {
 //
 type Rotating []interface{}
 
-// Verify verify with fn and keys, if Verify failure, it return -1, other the index of key.
+// Verify verify with fn and keys, if Verify failure, it return -1, otherwise the index of key.
 func (r Rotating) Verify(fn func(interface{}) bool) (index int) {
 	for i, key := range r {
 		if fn(key) {
@@ -262,7 +262,7 @@ func (r Rotating) Verify(fn func(interface{}) bool) (index int) {
 // RotatingStr is similar to Rotating.
 type RotatingStr []string
 
-// Verify verify with fn and keys, if Verify failure, it return -1, other the index of key.
+// Verify verify with fn and keys, if Verify failure, it return -1, otherwise the index of key.
 func (r RotatingStr) Verify(fn func(string) bool) (index int) {
 	for i, key := range r {
 		if fn(key) {
@@ -275,7 +275,7 @@ func (r RotatingStr) Verify(fn func(string) bool) (index int) {
 // RotatingBytes is similar to Rotating.
 type RotatingBytes [][]byte
 
-// Verify verify with fn and keys, if Verify failure, it return -1, other the index of key.
+// Verify verify with fn and keys, if Verify failure, it return -1, otherwise the index of key.
 func (r RotatingBytes) Verify(fn func([]byte) bool) (index int) {
 	for i, key := range r {
 		if fn(key) {
