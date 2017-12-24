@@ -230,7 +230,7 @@ func VerifyState(key []byte, uid, state string, expire time.Duration) bool {
 	if err != nil || (i+int64(expire)/1e9) < time.Now().Unix() {
 		return false
 	}
-	return state[0:40] == signState(key, uid+state[40:])
+	return Equal([]byte(state[0:40]), []byte(signState(key, uid+state[40:])))
 }
 
 // Rotating is used to verify data through a rotating credential system,
