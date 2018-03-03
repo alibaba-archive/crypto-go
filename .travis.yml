@@ -1,18 +1,22 @@
 sudo: false
 language: go
 go:
-  - 1.8
-  - 1.8.1
-  - 1.8.2
-  - 1.8.3
-  - 1.8.4
-  - 1.8.5
   - 1.9
   - 1.9.1
   - 1.9.2
+  - 1.9.3
+  - 1.9.4
+  - 1.10
 before_install:
-  - go get -t -v ./...
+  - go get -v ./...
+  - go get github.com/stretchr/testify/assert
+  - go get github.com/modocache/gover
   - go get github.com/mattn/goveralls
 script:
   - go test -coverprofile=crypto.coverprofile
-  - goveralls -coverprofile=crypto.coverprofile -service=travis-ci
+  - go test -coverprofile=cipher.coverprofile ./cipher
+  - go test -coverprofile=password.coverprofile ./password
+  - go test -coverprofile=signature.coverprofile ./signature
+  - go test -coverprofile=state.coverprofile ./state
+  - gover
+  - goveralls -coverprofile=gover.coverprofile -service=travis-ci

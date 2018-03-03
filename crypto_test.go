@@ -5,9 +5,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/sha3"
@@ -107,100 +105,6 @@ func TestCrypto(t *testing.T) {
 		assert.Equal(32, len(SHA256Hmac([]byte("admin"), []byte("中文"))))
 	})
 
-	t.Run("AESEncrypt and AESDecrypt", func(t *testing.T) {
-		assert := assert.New(t)
-
-		salt := RandN(16)
-		key := SHA256Hmac(salt, []byte("test key"))
-
-		cipherData, err := AESEncrypt(salt, key, []byte{})
-		assert.Nil(err)
-		data, err := AESDecrypt(salt, key, cipherData)
-		assert.Nil(err)
-		assert.Equal([]byte{}, data)
-
-		cipherData, err = AESEncrypt(salt, key, []byte("Hello! 中国"))
-		assert.Nil(err)
-		data, err = AESDecrypt(salt, key, cipherData)
-		assert.Nil(err)
-		assert.Equal("Hello! 中国", string(data))
-
-		data, err = AESDecrypt(salt, key, append(cipherData[0:len(cipherData)-1], cipherData[len(cipherData)-1]+1))
-		assert.NotNil(err)
-		assert.Nil(data)
-
-		data, err = AESDecrypt(salt, key, cipherData[0:10])
-		assert.NotNil(err)
-		assert.Nil(data)
-	})
-
-	t.Run("AESEncryptStr and AESDecryptStr", func(t *testing.T) {
-		assert := assert.New(t)
-
-		key := "test key"
-
-		cipherData, err := AESEncryptStr(nil, key, "")
-		assert.Nil(err)
-		data, err := AESDecryptStr(nil, key, cipherData)
-		assert.Nil(err)
-		assert.Equal("", data)
-
-		cipherData, err = AESEncryptStr(nil, key, "Hello! 中国")
-		assert.Nil(err)
-		data, err = AESDecryptStr(nil, key, cipherData)
-		assert.Nil(err)
-		assert.Equal("Hello! 中国", data)
-
-		data, err = AESDecryptStr(nil, key, cipherData+"1")
-		assert.NotNil(err)
-		assert.Equal("", data)
-
-		data, err = AESDecryptStr(nil, key, strings.ToLower(cipherData))
-		assert.NotNil(err)
-		assert.Equal("", data)
-
-		data, err = AESDecryptStr(nil, key, cipherData[:len(cipherData)-10])
-		assert.NotNil(err)
-		assert.Equal("", data)
-	})
-
-	t.Run("SignPass and VerifyPass", func(t *testing.T) {
-		assert := assert.New(t)
-		salt := RandN(16)
-
-		checkPass := SignPass(salt, "admin", "test pass")
-		assert.True(VerifyPass(salt, "admin", "test pass", checkPass))
-		assert.False(VerifyPass(salt, "admin1", "test pass", checkPass))
-		assert.False(VerifyPass(salt, "admin", "test pass1", checkPass))
-		assert.False(VerifyPass(salt, "admin", "test pass", checkPass[1:]))
-		assert.False(VerifyPass(salt, "admin", "test pass", checkPass[:10]))
-
-		checkPass = SignPass(nil, "admin", "test pass")
-		assert.True(VerifyPass(nil, "admin", "test pass", checkPass))
-		assert.False(VerifyPass(salt, "admin", "test pass", checkPass))
-
-		checkPass = SignPass(salt, "admin", "test pass", 1025, 16)
-		assert.True(VerifyPass(salt, "admin", "test pass", checkPass, 1025, 16))
-		assert.False(VerifyPass(salt, "admin", "test pass", checkPass, 1024, 16))
-	})
-
-	t.Run("SignState and VerifyState", func(t *testing.T) {
-		assert := assert.New(t)
-
-		key := RandN(16)
-		state := SignState(key, "")
-		assert.True(VerifyState(key, "", state, time.Second))
-		assert.False(VerifyState(key, "abc", state, time.Second))
-		assert.False(VerifyState(key, "", state[0:5], time.Second))
-		assert.False(VerifyState(key, "", state+"1", time.Second))
-		assert.False(VerifyState(RandN(12), "", state, time.Second))
-		time.Sleep(2 * time.Second)
-		assert.False(VerifyState(key, "", state, time.Second))
-
-		state = SignState(key, "cb374f9a1d2c3e8e56fe76c7e0770531eed27c89beae9de4")
-		assert.True(VerifyState(key, "cb374f9a1d2c3e8e56fe76c7e0770531eed27c89beae9de4", state, time.Second))
-	})
-
 	t.Run("Rotating", func(t *testing.T) {
 		assert := assert.New(t)
 
@@ -271,7 +175,7 @@ func BenchmarkSHA2(b *testing.B) {
 }
 
 func BenchmarkSHA3(b *testing.B) {
-	b.N = 100000
+	b.N = 1000000
 	b.ReportAllocs()
 	b.ResetTimer()
 
