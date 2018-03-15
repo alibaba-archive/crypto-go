@@ -55,3 +55,37 @@ func TestCryptoState(t *testing.T) {
 		assert.False(Verify(key, "cb374f9a1d2c3e8e56fe76c7e0770531eed27c89beae9de4", state, time.Second))
 	})
 }
+
+func TestCryptoStates(t *testing.T) {
+	ss, err := New()
+	assert.Nil(t, ss)
+	assert.NotNil(t, err)
+
+	ss, err = New([]byte{})
+	assert.Nil(t, ss)
+	assert.NotNil(t, err)
+
+	ss, err = New([]byte("my new key"), []byte("my key"))
+	assert.Nil(t, err)
+
+	t.Run("Sign and Verify should work", func(t *testing.T) {
+		assert := assert.New(t)
+
+		assert.False(ss.Verify("some message 1", Sign([]byte("my key"), "some message")))
+		assert.True(ss.Verify("some message", Sign([]byte("my key"), "some message")))
+		assert.False(ss.Verify("some message 1", ss.Sign("some message")))
+		assert.True(ss.Verify("some message", ss.Sign("some message")))
+		assert.True(ss.Verify("some message", ss.Sign("some message"), time.Second))
+		assert.Equal(64, len(ss.Sign("some message")))
+
+	})
+
+	t.Run("should verify failure when expired", func(t *testing.T) {
+		assert := assert.New(t)
+
+		assert.True(ss.Verify("some message", ss.Sign("some message")))
+		assert.True(ss.Verify("some message", ss.Sign("some message"), time.Second))
+		time.Sleep(2 * time.Second)
+		assert.True(ss.Verify("some message", ss.Sign("some message"), time.Second))
+	})
+}

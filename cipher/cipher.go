@@ -77,6 +77,17 @@ func (b *Box) Decrypt(encrypted []byte) ([]byte, error) {
 	return decrypted, nil
 }
 
+// NewSalsa20 -
+func NewSalsa20(key []byte) (*Salsa20, error) {
+	if l := len(key); l != 32 {
+		return nil, errors.New("crypto-go: bad Salsa20 key length: " + strconv.Itoa(l))
+	}
+
+	secretKey := new([32]byte)
+	copy(secretKey[:], key)
+	return &Salsa20{secretKey}, nil
+}
+
 // Salsa20 - nacl/secretbox
 type Salsa20 struct {
 	secretKey *[32]byte
