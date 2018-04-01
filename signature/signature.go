@@ -2,6 +2,7 @@ package signature
 
 import (
 	"bytes"
+	cryptorand "crypto/rand"
 	"encoding/base64"
 	"errors"
 	"strconv"
@@ -16,12 +17,12 @@ const (
 	SignatureSize = 64
 )
 
-// Sign - authenticates a message using a secret key.
+// Sign - sign a message with Hmac sha3 512.
 func Sign(secretKey, message []byte) (sig []byte) {
 	return crypto.HmacSum(sha3.New512, secretKey, message)
 }
 
-// Verify -
+// Verify - verify message for Sign
 func Verify(secretKey, message, sig []byte) bool {
 	if len(sig) != SignatureSize {
 		return false
@@ -29,28 +30,31 @@ func Verify(secretKey, message, sig []byte) bool {
 	return crypto.Equal(sig, Sign(secretKey, message))
 }
 
-// SignPrivate - public-key signature
+// SignPrivate - sign a message with public-key signature ed25519
 func SignPrivate(privateKey, message []byte) (sig []byte) {
 	return ed25519.Sign(ed25519.PrivateKey(privateKey), message)
 }
 
-// VerifyPublic -
+// VerifyPublic - verify message for SignPrivate
 func VerifyPublic(publicKey, message, sig []byte) bool {
-	if len(sig) != SignatureSize {
+	if len(sig) != SignatureSize || len(publicKey) != ed25519.PublicKeySize {
 		return false
 	}
 	return ed25519.Verify(ed25519.PublicKey(publicKey), message, sig)
 }
 
+// KeyPair - struct for Sign and Verify with ed25519
 type KeyPair struct {
 	publicKey  ed25519.PublicKey
 	privateKey ed25519.PrivateKey
 }
 
+// Sign - sign a message with public-key signature ed25519
 func (k *KeyPair) Sign(message []byte) (sig []byte) {
 	return ed25519.Sign(k.privateKey, message)
 }
 
+// Verify - verify message for Sign
 func (k *KeyPair) Verify(message, sig []byte) bool {
 	if len(sig) != SignatureSize {
 		return false
@@ -61,7 +65,7 @@ func (k *KeyPair) Verify(message, sig []byte) bool {
 // GenerateKey generates a public/private key pair using entropy from rand.
 // the keys is encoded by base64.RawURLEncoding
 func GenerateKey() (publicKey, privateKey string) {
-	public, private, err := ed25519.GenerateKey(nil)
+	public, private, err := ed25519.GenerateKey(cryptorand.Reader)
 	if err != nil {
 		panic(err)
 	}

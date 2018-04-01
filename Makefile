@@ -13,7 +13,7 @@ cover:
 	go test -coverprofile=signature.coverprofile ./signature
 	go test -coverprofile=state.coverprofile ./state
 	gover
-	go tool cover -html=crypto.coverprofile
+	go tool cover -html=gover.coverprofile
 	rm -f *.coverprofile
 
 .PHONY: test cover

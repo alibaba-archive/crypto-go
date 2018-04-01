@@ -11,7 +11,7 @@ import (
 )
 
 // Sign generates a state string signed with SHA3 256.
-// It is useful for OAUTH2 or Web hook callback.
+// It is useful for OAuth2 or Webhook callback.
 // base64RawURL(8 bytes time + 8 bytes nonce + 32 bytes sha3 256)
 //
 //  fmt.Println(Sign([]byte("my key"), ""))

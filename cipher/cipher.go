@@ -15,29 +15,29 @@ import (
 	"golang.org/x/crypto/nacl/secretbox"
 )
 
-// GenerateKey generates a public/private key pair using entropy from rand.
+// GenerateKey generates a public/private key pair for Box.
 // the keys is encoded by base64.RawURLEncoding
 func GenerateKey() (publicKey, privateKey string) {
-	public, private, err := box.GenerateKey(nil)
+	public, private, err := box.GenerateKey(rand.Reader)
 	if err != nil {
 		panic(err)
 	}
 	return base64.RawURLEncoding.EncodeToString(public[:]), base64.RawURLEncoding.EncodeToString(private[:])
 }
 
-// Box - nacl/box
+// Box use to encrypts/decrypts message with nacl/box (curve25519&salsa20), it implemented Cipher insterface.
 type Box struct {
 	sharedEncryptKey *[32]byte
 }
 
-// NewBox -
-func NewBox(publicKey, privateKey string) (*Box, error) {
-	public, err := base64.RawURLEncoding.DecodeString(publicKey)
+// NewBox returns Box instance
+func NewBox(peersPublicKey, privateKey string) (*Box, error) {
+	public, err := base64.RawURLEncoding.DecodeString(peersPublicKey)
 	if err != nil {
 		return nil, err
 	}
 	if l := len(public); l != 32 {
-		return nil, errors.New("crypto-go: bad curve25519 public key length: " + strconv.Itoa(l))
+		return nil, errors.New("crypto-go: bad curve25519 peers public key length: " + strconv.Itoa(l))
 	}
 
 	private, err := base64.RawURLEncoding.DecodeString(privateKey)
@@ -49,35 +49,47 @@ func NewBox(publicKey, privateKey string) (*Box, error) {
 	}
 
 	pub := new([32]byte)
-	copy(pub[:], public[:24])
+	copy(pub[:], public)
 	pri := new([32]byte)
-	copy(pri[:], private[:24])
+	copy(pri[:], private)
 	sharedEncryptKey := new([32]byte)
 	box.Precompute(sharedEncryptKey, pub, pri)
 	return &Box{sharedEncryptKey}, nil
 }
 
-// Encrypt - recipientPublicKey, senderPrivateKey for Encrypt
+// Encrypt encrypt data using Box
+//
+//  cipherData, err := myBox.Encrypt([]byte("hello"))
 func (b *Box) Encrypt(data []byte) ([]byte, error) {
-	nonce := new([24]byte)
+	var nonce [24]byte
 	if _, err := io.ReadFull(rand.Reader, nonce[:]); err != nil {
 		return nil, err
 	}
-	return box.SealAfterPrecomputation(nonce[:], data, nonce, b.sharedEncryptKey), nil
+	return box.SealAfterPrecomputation(nonce[:], data, &nonce, b.sharedEncryptKey), nil
 }
 
-// Decrypt - senderPublicKey, recipientPrivateKey for Decrypt
+// Decrypt decrypt data using Box
+//
+//  message, err := myBox.Decrypt(cipherData)
 func (b *Box) Decrypt(encrypted []byte) ([]byte, error) {
-	decryptNonce := new([24]byte)
+	var decryptNonce [24]byte
+	if len(encrypted) < 24 {
+		return nil, errors.New("invalid input")
+	}
 	copy(decryptNonce[:], encrypted[:24])
-	decrypted, ok := box.OpenAfterPrecomputation(nil, encrypted[24:], decryptNonce, b.sharedEncryptKey)
+	decrypted, ok := box.OpenAfterPrecomputation(nil, encrypted[24:], &decryptNonce, b.sharedEncryptKey)
 	if !ok {
 		return nil, errors.New("decryption error")
 	}
 	return decrypted, nil
 }
 
-// NewSalsa20 -
+// Salsa20 use to encrypts/decrypts message with salsa20, it implemented Cipher insterface.
+type Salsa20 struct {
+	secretKey *[32]byte
+}
+
+// NewSalsa20 returns Salsa20 instance.
 func NewSalsa20(key []byte) (*Salsa20, error) {
 	if l := len(key); l != 32 {
 		return nil, errors.New("crypto-go: bad Salsa20 key length: " + strconv.Itoa(l))
@@ -88,12 +100,9 @@ func NewSalsa20(key []byte) (*Salsa20, error) {
 	return &Salsa20{secretKey}, nil
 }
 
-// Salsa20 - nacl/secretbox
-type Salsa20 struct {
-	secretKey *[32]byte
-}
-
-// Encrypt -
+// Encrypt encrypt data using Salsa20.
+//
+//  cipherData, err := mySalsa20.Encrypt([]byte("hello"))
 func (s *Salsa20) Encrypt(data []byte) ([]byte, error) {
 	var nonce [24]byte
 	if _, err := io.ReadFull(rand.Reader, nonce[:]); err != nil {
@@ -104,9 +113,14 @@ func (s *Salsa20) Encrypt(data []byte) ([]byte, error) {
 	return encrypted, nil
 }
 
-// Decrypt =
+// Decrypt decrypt data using Salsa20.
+//
+//  message, err := mySalsa20.Decrypt(cipherData)
 func (s *Salsa20) Decrypt(encrypted []byte) ([]byte, error) {
 	decryptNonce := new([24]byte)
+	if len(encrypted) < 24 {
+		return nil, errors.New("invalid input")
+	}
 	copy(decryptNonce[:], encrypted[:24])
 	decrypted, ok := secretbox.Open(nil, encrypted[24:], decryptNonce, s.secretKey)
 	if !ok {
@@ -115,12 +129,14 @@ func (s *Salsa20) Decrypt(encrypted []byte) ([]byte, error) {
 	return decrypted, nil
 }
 
-// AES -
+// AES use to encrypts/decrypts message with AES-256 with CTR Mode, it implemented Cipher insterface.
 type AES struct {
 	block _cipher.Block
 }
 
-// NewAES -
+// NewAES returns AES instance
+//
+// myAES := NewAES([]byte("my salt"), []byte("my key"))
 func NewAES(salt, key []byte) (*AES, error) {
 	block, err := aes.NewCipher(crypto.SHA256Hmac(key, salt))
 	if err != nil {
@@ -129,11 +145,9 @@ func NewAES(salt, key []byte) (*AES, error) {
 	return &AES{block}, nil
 }
 
-// Encrypt encrypt data using AES-256 with CTR Mode
+// Encrypt encrypt data using AES.
 //
-//  fmt.Println(crypto.AESEncrypt([]byte("my salt"), []byte("my key"), []byte("hello")))
-//  fmt.Println(crypto.AESEncrypt(nil, []byte("my key"), []byte("hello"))) // no salt
-//
+//  cipherData, err := myAES.Encrypt([]byte("hello"))
 func (a *AES) Encrypt(data []byte) ([]byte, error) {
 	cipherData := make([]byte, aes.BlockSize+len(data))
 	iv := cipherData[:aes.BlockSize]
@@ -146,7 +160,9 @@ func (a *AES) Encrypt(data []byte) ([]byte, error) {
 	return append(cipherData, crypto.HmacSum(sha1.New, cipherData, data)...), nil
 }
 
-// Decrypt -
+// Decrypt decrypt data using AES.
+//
+//  message, err := myAES.Decrypt(cipherData)
 func (a *AES) Decrypt(encrypted []byte) ([]byte, error) {
 	if len(encrypted) < aes.BlockSize+sha1.Size {
 		return nil, errors.New("invalid cipher data")
@@ -161,13 +177,17 @@ func (a *AES) Decrypt(encrypted []byte) ([]byte, error) {
 	if !crypto.Equal(crypto.HmacSum(sha1.New, encrypted, data), checkSum) {
 		return nil, errors.New("invalid cipher data")
 	}
+	if len(data) == 0 {
+		return nil, nil
+	}
 	return data, nil
 }
 
-// EncryptToBase64 encrypt data using AES-256 with CTR Mode
+// EncryptToBase64 encrypt data with given Cipher and returns base64 string
 //
-//  fmt.Println(crypto.AESEncryptStr([]byte("my salt"), "my key", "hello"))
-//  fmt.Println(crypto.AESEncryptStr(nil, "my key", "hello")) // no salt
+//  cipherString, err = EncryptToBase64(myAES, []byte("Hello! 中国"))
+//  cipherString, err = EncryptToBase64(myBox, []byte("Hello! 中国"))
+//  cipherString, err = EncryptToBase64(mySalsa20, []byte("Hello! 中国"))
 //
 func EncryptToBase64(c Cipher, msg []byte) (string, error) {
 	data, err := c.Encrypt(msg)
@@ -177,10 +197,11 @@ func EncryptToBase64(c Cipher, msg []byte) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(data), nil
 }
 
-// DecryptFromBase64 decrypt data that encrypted by AESDecryptStr
+// DecryptFromBase64 decrypt base64 string data with given Cipher and returns massage
 //
-//  fmt.Println(crypto.AESDecryptStr([]byte("my salt"), "my key", cipherData))
-//  fmt.Println(crypto.AESDecryptStr(nil, "my key", cipherData)) // no salt
+//  messsage, err = DecryptFromBase64(myAES, cipherString)
+//  messsage, err = DecryptFromBase64(myBox, cipherString)
+//  messsage, err = DecryptFromBase64(mySalsa20, cipherString)
 //
 func DecryptFromBase64(c Cipher, encrypted string) ([]byte, error) {
 	cipherData, err := base64.RawURLEncoding.DecodeString(encrypted)
@@ -195,7 +216,7 @@ func DecryptFromBase64(c Cipher, encrypted string) ([]byte, error) {
 	return data, nil
 }
 
-// Cipher -
+// Cipher is using for EncryptToBase64 and DecryptFromBase64
 type Cipher interface {
 	// Encrypt encrypts the first block in src into dst.
 	// Dst and src must overlap entirely or not at all.
