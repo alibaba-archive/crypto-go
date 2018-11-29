@@ -25,7 +25,7 @@ func GenerateKey() (publicKey, privateKey string) {
 	return base64.RawURLEncoding.EncodeToString(public[:]), base64.RawURLEncoding.EncodeToString(private[:])
 }
 
-// Box use to encrypts/decrypts message with nacl/box (curve25519&salsa20), it implemented Cipher insterface.
+// Box use to encrypts/decrypts message base on public key infrastructure (nacl/box, curve25519&salsa20), it implemented Cipher insterface.
 type Box struct {
 	sharedEncryptKey *[32]byte
 }
