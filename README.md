@@ -58,6 +58,18 @@ func KeyPairFrom(publicKey string, privateKey ...string) (*KeyPair, error)
 
 func (k *KeyPair) Sign(message []byte) (sig []byte)
 func (k *KeyPair) Verify(message, sig []byte) bool
+
+type Keys [][]byte
+func (k Keys) Sign(message []byte) []byte
+func (k Keys) Verify(message, sig []byte) bool
+func (k Keys) Seal(message []byte) []byte
+func (k Keys) Open(message []byte) ([]byte, bool)
+
+type KeyPairs []*KeyPair
+func (k KeyPairs) Sign(message []byte) []byte
+func (k KeyPairs) Verify(message, sig []byte) bool
+func (k KeyPairs) Seal(message []byte) []byte
+func (k KeyPairs) Open(message []byte) ([]byte, bool)
 ```
 
 password "github.com/teambition/crypto-go/password":

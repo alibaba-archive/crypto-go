@@ -9,7 +9,7 @@ import (
 )
 
 // Version -
-const Version = "3.0.1"
+const Version = "3.1.0"
 
 // Equal compares two []byte for equality without leaking timing information.
 //

@@ -26,6 +26,33 @@ func TestCryptoSignature(t *testing.T) {
 		assert.False(Verify(key, []byte("test message"), sig))
 	})
 
+	t.Run("Keys", func(t *testing.T) {
+		assert := assert.New(t)
+		keys1 := Keys([][]byte{crypto.RandN(16)})
+		keys2 := Keys([][]byte{crypto.RandN(32), keys1[0]})
+
+		sig := keys1.Sign([]byte("test message"))
+		assert.True(keys1.Verify([]byte("test message"), sig))
+		assert.True(keys2.Verify([]byte("test message"), sig))
+		assert.False(keys1.Verify([]byte("test message1"), sig))
+		assert.False(keys1.Verify([]byte("test message"), sig[1:]))
+		assert.False(keys1.Verify([]byte("test message"), sig[:10]))
+
+		msg := []byte("你好，中国！")
+		data := keys2.Seal(msg)
+		v, ok := keys2.Open(data)
+		assert.True(ok)
+		assert.Equal(msg, v)
+		assert.Equal(32+len(msg), len(data))
+
+		v, ok = keys1.Open(msg)
+		assert.False(ok)
+		assert.Nil(v)
+		v, ok = keys2.Open(msg[:len(msg)-10])
+		assert.False(ok)
+		assert.Nil(v)
+	})
+
 	t.Run("SignPrivate and VerifyPublic", func(t *testing.T) {
 		assert := assert.New(t)
 		public, private, _ := ed25519.GenerateKey(nil)
@@ -80,5 +107,38 @@ func TestCryptoSignature(t *testing.T) {
 
 		_, err = KeyPairFrom(publicKey2, privateKey)
 		assert.NotNil(err)
+	})
+
+	t.Run("KeyPairs", func(t *testing.T) {
+		assert := assert.New(t)
+		// publicKey, privateKey := GenerateKey()
+		KeyPair1, err := KeyPairFrom(GenerateKey())
+		assert.Nil(err)
+		KeyPair2, err := KeyPairFrom(GenerateKey())
+		assert.Nil(err)
+
+		keyPairs1 := KeyPairs([]*KeyPair{KeyPair1})
+		keyPairs2 := KeyPairs([]*KeyPair{KeyPair2, KeyPair1})
+
+		sig := keyPairs1.Sign([]byte("test message"))
+		assert.True(keyPairs1.Verify([]byte("test message"), sig))
+		assert.True(keyPairs2.Verify([]byte("test message"), sig))
+		assert.False(keyPairs1.Verify([]byte("test message1"), sig))
+		assert.False(keyPairs1.Verify([]byte("test message"), sig[1:]))
+		assert.False(keyPairs1.Verify([]byte("test message"), sig[:10]))
+
+		msg := []byte("你好，中国！")
+		data := keyPairs2.Seal(msg)
+		v, ok := keyPairs2.Open(data)
+		assert.True(ok)
+		assert.Equal(msg, v)
+		assert.Equal(64+len(msg), len(data))
+
+		v, ok = keyPairs1.Open(msg)
+		assert.False(ok)
+		assert.Nil(v)
+		v, ok = keyPairs2.Open(msg[:len(msg)-10])
+		assert.False(ok)
+		assert.Nil(v)
 	})
 }

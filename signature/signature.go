@@ -43,6 +43,48 @@ func VerifyPublic(publicKey, message, sig []byte) bool {
 	return ed25519.Verify(ed25519.PublicKey(publicKey), message, sig)
 }
 
+// Keys - struct for Sign and Verify with HmacSum & sha3.New256
+type Keys [][]byte
+
+// Sign - sign a message with HmacSum & sha3.New256
+func (k Keys) Sign(message []byte) []byte {
+	if len(k) == 0 {
+		return nil
+	}
+	return crypto.HmacSum(sha3.New256, k[0], message)
+}
+
+// Verify - verify message with HmacSum & sha3.New256
+func (k Keys) Verify(message, sig []byte) bool {
+	if len(sig) != 32 {
+		return false
+	}
+	for _, key := range k {
+		if crypto.Equal(sig, crypto.HmacSum(sha3.New256, key, message)) {
+			return true
+		}
+	}
+	return false
+}
+
+// Seal - Seal a message with HmacSum&sha3.New256
+func (k Keys) Seal(message []byte) []byte {
+	sig := k.Sign(message)
+	return append(sig, message...)
+}
+
+// Open - Open a message with HmacSum&sha3.New256
+func (k Keys) Open(message []byte) ([]byte, bool) {
+	if len(message) > 32 {
+		data := message[32:]
+		if k.Verify(data, message[:32]) {
+			// should return a copy data
+			return append(make([]byte, 0, len(data)), data...), true
+		}
+	}
+	return nil, false
+}
+
 // KeyPair - struct for Sign and Verify with ed25519
 type KeyPair struct {
 	publicKey  ed25519.PublicKey
@@ -100,4 +142,45 @@ func KeyPairFrom(publicKey string, privateKey ...string) (*KeyPair, error) {
 		keyPair.privateKey = ed25519.PrivateKey(private)
 	}
 	return &keyPair, nil
+}
+
+// KeyPairs -
+type KeyPairs []*KeyPair
+
+// Sign - sign a message with ed25519
+func (k KeyPairs) Sign(message []byte) (sig []byte) {
+	if len(k) == 0 {
+		return nil
+	}
+	return k[0].Sign(message)
+}
+
+// Verify - verify message with ed25519
+func (k KeyPairs) Verify(message, sig []byte) bool {
+	if len(sig) != SignatureSize {
+		return false
+	}
+	for _, key := range k {
+		if key.Verify(message, sig) {
+			return true
+		}
+	}
+	return false
+}
+
+// Seal - Seal a message with ed25519
+func (k KeyPairs) Seal(message []byte) []byte {
+	sig := k.Sign(message)
+	return append(sig, message...)
+}
+
+// Open - Open a message with ed25519
+func (k KeyPairs) Open(message []byte) ([]byte, bool) {
+	if len(message) > SignatureSize {
+		data := message[SignatureSize:]
+		if k.Verify(data, message[:SignatureSize]) {
+			return append(make([]byte, 0, len(data)), data...), true
+		}
+	}
+	return nil, false
 }
